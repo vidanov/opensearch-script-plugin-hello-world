@@ -1,0 +1,83 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.example'
+version = '1.0.0'
+
+// Set the JAR name to match the plugin name
+jar {
+    archiveBaseName = 'hello-world-genai-script-plugin'
+    archiveVersion = '1.0.0'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "Sonatype Snapshots"
+        url = "https://oss.sonatype.org/content/repositories/snapshots/"
+    }
+}
+
+dependencies {
+    compileOnly "org.opensearch:opensearch:2.15.0"
+    testImplementation "org.opensearch.test:framework:2.15.0"
+    testImplementation "junit:junit:4.13.2"
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+    implementation 'ch.qos.logback:logback-classic:1.2.6'
+}
+
+test {
+    useJUnit()
+    systemProperty 'tests.security.manager', 'false'
+}
+
+// Create plugin descriptor
+task createPluginDescriptor {
+    doLast {
+        def descriptorFile = file("${buildDir}/resources/main/plugin-descriptor.properties")
+        descriptorFile.parentFile.mkdirs()
+        descriptorFile.text = """
+description=A Hello World scripting plugin with GenAI scoring for OpenSearch
+version=2.15.0
+name=hello-world-genai-script-plugin
+classname=com.example.HelloWorldScriptPlugin
+java.version=11
+opensearch.version=2.15.0
+""".trim()
+    }
+}
+
+processResources.dependsOn createPluginDescriptor
+
+// Create proper plugin ZIP structure (FLAT - no lib directory)
+task pluginZip(type: Zip) {
+    archiveBaseName = 'hello-world-genai-script-plugin'
+    archiveVersion = ''  // Remove version from ZIP name
+    destinationDirectory = file("${buildDir}/distributions")
+    
+    // Create the correct OpenSearch plugin structure (FLAT)
+    // plugin-descriptor.properties in root
+    from(file("src/main/resources/plugin-descriptor.properties"))
+    
+    // JAR file directly in root (NOT in lib/ subdirectory)
+    from(jar) {
+        rename { fileName ->
+            // Rename JAR to match plugin name exactly
+            'hello-world-genai-script-plugin.jar'
+        }
+    }
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Make sure the plugin ZIP is built after the JAR and descriptor
+pluginZip.dependsOn jar, createPluginDescriptor
+
+// Make build depend on our custom plugin ZIP
+build.dependsOn pluginZip
